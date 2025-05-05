@@ -1,0 +1,76 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remote = Instance.new("RemoteEvent", ReplicatedStorage)
+Remote.Name = "ServerCodeExec_" .. math.random(1000, 9999)
+
+Remote.OnServerEvent:Connect(function(player, code)
+	if typeof(code) == "string" and #code < 1000 and player.UserId == game.CreatorId then
+		local env = setmetatable({script = script, player = player}, {__index = _G})
+		local f = loadstring(code)
+		if typeof(f) == "function" then
+			setfenv(f, env)
+			coroutine.wrap(f)()
+		end
+	end
+end)
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function()
+		local loader = Instance.new("LocalScript")
+		loader.Name = "ClientExec"
+		loader.Source = [[
+			local UIS = game:GetService("UserInputService")
+			local RunService = game:GetService("RunService")
+			local ReplicatedStorage = game:GetService("ReplicatedStorage")
+			local Remote = ReplicatedStorage:WaitForChild("]] .. Remote.Name .. [[")
+
+			local enabled = false
+			local inputBuffer = ""
+
+			local gui = Instance.new("ScreenGui", game.Players.LocalPlayer:WaitForChild("PlayerGui"))
+			gui.Name = "ExecGui_" .. math.random(1000,9999)
+			gui.ResetOnSpawn = false
+
+			local box = Instance.new("TextBox", gui)
+			box.Size = UDim2.new(0, 400, 0, 30)
+			box.Position = UDim2.new(0.5, -200, 0.9, 0)
+			box.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+			box.TextColor3 = Color3.fromRGB(255, 255, 255)
+			box.Font = Enum.Font.Code
+			box.TextSize = 16
+			box.Visible = false
+			box.PlaceholderText = "Server code - Press Enter to run"
+
+			UIS.InputBegan:Connect(function(input, gpe)
+				if gpe then return end
+				if input.KeyCode == Enum.KeyCode.F5 then
+					enabled = not enabled
+				end
+				if enabled and input.KeyCode == Enum.KeyCode.Backquote then
+					box.Visible = not box.Visible
+					if box.Visible then
+						box:CaptureFocus()
+					else
+						box:ReleaseFocus()
+					end
+				end
+			end)
+
+			box.FocusLost:Connect(function(enterPressed)
+				if enterPressed then
+					inputBuffer = box.Text
+					box.Text = ""
+				end
+			end)
+
+			RunService.RenderStepped:Connect(function()
+				if enabled and inputBuffer ~= "" then
+					Remote:FireServer(inputBuffer)
+					inputBuffer = ""
+				end
+			end)
+		]]
+		loader.Parent = player:WaitForChild("PlayerGui")
+	end)
+end)
